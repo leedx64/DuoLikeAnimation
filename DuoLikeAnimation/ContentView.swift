@@ -2,31 +2,37 @@
 //  ContentView.swift
 //  DuoLikeAnimation
 //
-//  Created by Elijah Semyonov on 10/09/2026.
-//
 
 import SwiftUI
 
 struct ContentView: View {
     @State private var motion = FoldMotionModel()
     @State private var showsControls = false
+    @State private var selectedChat: ChatPreview?
 
     var body: some View {
         GeometryReader { proxy in
             let insets = proxy.safeAreaInsets
-            DemoContentView()
+            DemoContentView(selectedChatID: selectedChat?.id)
                 .safeAreaPadding(insets)
-                // Pin the shaded layer to the physical screen: the shader places the eye at the
-                // center of its bounds, so content overflowing the screen would shift the geometry.
                 .frame(width: proxy.size.width + insets.leading + insets.trailing,
                        height: proxy.size.height + insets.top + insets.bottom)
                 .clipped()
                 .foldEffect(angle: motion.tiltAngle)
+                .allowsHitTesting(false)
                 .ignoresSafeArea()
+                .overlay {
+                    ChatTapLayer { selectedChat = $0 }
+                        .safeAreaPadding(insets)
+                        .frame(width: proxy.size.width + insets.leading + insets.trailing,
+                               height: proxy.size.height + insets.top + insets.bottom)
+                        .ignoresSafeArea()
+                }
         }
         .overlay(alignment: .bottomTrailing) { controls }
         .onAppear { motion.start() }
         .onDisappear { motion.stop() }
+        .sheet(item: $selectedChat) { ChatDetailView(chat: $0) }
     }
 
     private var controls: some View {
@@ -75,6 +81,48 @@ struct ContentView: View {
         .padding(16)
         .frame(width: 280)
         .background(.ultraThinMaterial, in: .rect(cornerRadius: 20))
+    }
+}
+
+/// Keeps hit testing outside the shader-rendered layer, so chat rows remain tappable.
+private struct ChatTapLayer: View {
+    let openChat: (ChatPreview) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 68)
+            ForEach(chats) { chat in
+                Button { openChat(chat) } label: {
+                    Color.clear.frame(maxWidth: .infinity, minHeight: 77)
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.leading, 78)
+            }
+            Spacer()
+        }
+    }
+}
+
+private struct ChatDetailView: View {
+    let chat: ChatPreview
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(chat.message)
+                    .padding(14)
+                    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 14))
+                Spacer()
+            }
+            .padding()
+            .navigationTitle(chat.name)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Back") { dismiss() }
+                }
+            }
+        }
     }
 }
 
